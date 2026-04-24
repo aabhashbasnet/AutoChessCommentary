@@ -3,6 +3,7 @@ import chess.pgn
 from io import StringIO
 
 from app.utils.stockfish import get_stockfish
+from app.core.commentary import generate_commentary
 
 
 class ChessAnalyzer:
@@ -42,11 +43,11 @@ class ChessAnalyzer:
     def analyze_game(self, pgn_text):
         game = chess.pgn.read_game(StringIO(pgn_text))
         if not game:
-            return []
+            return [], None
 
         board = game.board()
         moves_data = []
-        game_result = None  # ← track result
+        game_result = None
 
         for move_number, move in enumerate(game.mainline_moves(), start=1):
             fen_before = board.fen()
@@ -71,15 +72,14 @@ class ChessAnalyzer:
             else:
                 cpl = max(0, eval_after_white - eval_before_white)
 
-            # ✅ detect special endings
             is_checkmate = board.is_checkmate()
             is_stalemate = board.is_stalemate()
             is_draw = board.is_insufficient_material() or board.is_seventyfive_moves()
 
             if is_checkmate:
-                quality = "Checkmate 🏆" if is_white_turn else "Checkmate 🏆"
+                quality = "Checkmate 🏆"
                 game_result = "White wins" if is_white_turn else "Black wins"
-                cpl = 0  # delivering checkmate is not a blunder
+                cpl = 0
             elif is_stalemate:
                 game_result = "Stalemate 🤝"
                 quality = self.classify_move(cpl)
@@ -89,20 +89,25 @@ class ChessAnalyzer:
             else:
                 quality = self.classify_move(cpl)
 
-            moves_data.append(
-                {
-                    "move_number": move_number,
-                    "move": san_move,
-                    "fen_before": fen_before,
-                    "fen_after": fen_after,
-                    "eval_before": eval_before_white,
-                    "eval_after": eval_after_white,
-                    "centipawn_loss": cpl,
-                    "best_move": best_move,
-                    "quality": quality,
-                    "is_checkmate": is_checkmate,  # ← new
-                    "is_stalemate": is_stalemate,  # ← new
-                }
-            )
+            # ✅ build dict first
+            move_data = {
+                "move_number": move_number,
+                "move": san_move,
+                "fen_before": fen_before,
+                "fen_after": fen_after,
+                "eval_before": eval_before_white,
+                "eval_after": eval_after_white,
+                "centipawn_loss": cpl,
+                "best_move": best_move,
+                "quality": quality,
+                "is_checkmate": is_checkmate,
+                "is_stalemate": is_stalemate,
+            }
 
-        return moves_data, game_result  # ← return result too
+            # ✅ add commentary
+            move_data["commentary"] = generate_commentary(move_data)
+
+            # ✅ then append
+            moves_data.append(move_data)
+
+        return moves_data, game_result
