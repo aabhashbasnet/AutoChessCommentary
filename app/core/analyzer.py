@@ -46,6 +46,7 @@ class ChessAnalyzer:
 
         board = game.board()
         moves_data = []
+        game_result = None  # ← track result
 
         for move_number, move in enumerate(game.mainline_moves(), start=1):
             fen_before = board.fen()
@@ -65,13 +66,28 @@ class ChessAnalyzer:
             eval_before_white = eval_before if is_white_turn else -eval_before
             eval_after_white = -eval_after if is_white_turn else eval_after
 
-            # ✅ Fixed: flip formula based on who moved
             if is_white_turn:
                 cpl = max(0, eval_before_white - eval_after_white)
             else:
                 cpl = max(0, eval_after_white - eval_before_white)
 
-            quality = self.classify_move(cpl)
+            # ✅ detect special endings
+            is_checkmate = board.is_checkmate()
+            is_stalemate = board.is_stalemate()
+            is_draw = board.is_insufficient_material() or board.is_seventyfive_moves()
+
+            if is_checkmate:
+                quality = "Checkmate 🏆" if is_white_turn else "Checkmate 🏆"
+                game_result = "White wins" if is_white_turn else "Black wins"
+                cpl = 0  # delivering checkmate is not a blunder
+            elif is_stalemate:
+                game_result = "Stalemate 🤝"
+                quality = self.classify_move(cpl)
+            elif is_draw:
+                game_result = "Draw 🤝"
+                quality = self.classify_move(cpl)
+            else:
+                quality = self.classify_move(cpl)
 
             moves_data.append(
                 {
@@ -84,7 +100,9 @@ class ChessAnalyzer:
                     "centipawn_loss": cpl,
                     "best_move": best_move,
                     "quality": quality,
+                    "is_checkmate": is_checkmate,  # ← new
+                    "is_stalemate": is_stalemate,  # ← new
                 }
             )
 
-        return moves_data
+        return moves_data, game_result  # ← return result too
