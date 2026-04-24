@@ -40,52 +40,51 @@ class ChessAnalyzer:
         return 0
 
     def analyze_game(self, pgn_text):
-
         game = chess.pgn.read_game(StringIO(pgn_text))
-
         if not game:
             return []
 
         board = game.board()
-
         moves_data = []
 
         for move_number, move in enumerate(game.mainline_moves(), start=1):
-
             fen_before = board.fen()
+            is_white_turn = board.turn == chess.WHITE
 
-            # set position before move
             self.stockfish.set_fen_position(fen_before)
             eval_before = self.get_eval()
-
             best_move = self.stockfish.get_best_move()
 
             san_move = board.san(move)
-
             board.push(move)
 
             fen_after = board.fen()
-
-            # set position after move
             self.stockfish.set_fen_position(fen_after)
             eval_after = self.get_eval()
 
-            diff = abs(eval_before - eval_after)
+            eval_before_white = eval_before if is_white_turn else -eval_before
+            eval_after_white = -eval_after if is_white_turn else eval_after
 
-            quality = self.classify_move(diff)
+            # ✅ Fixed: flip formula based on who moved
+            if is_white_turn:
+                cpl = max(0, eval_before_white - eval_after_white)
+            else:
+                cpl = max(0, eval_after_white - eval_before_white)
 
-            move_data = {
-                "move_number": move_number,
-                "move": san_move,
-                "fen_before": fen_before,
-                "fen_after": fen_after,
-                "eval_before": eval_before,
-                "eval_after": eval_after,
-                "centipawn_loss": diff,
-                "best_move": best_move,
-                "quality": quality,
-            }
+            quality = self.classify_move(cpl)
 
-            moves_data.append(move_data)
+            moves_data.append(
+                {
+                    "move_number": move_number,
+                    "move": san_move,
+                    "fen_before": fen_before,
+                    "fen_after": fen_after,
+                    "eval_before": eval_before_white,
+                    "eval_after": eval_after_white,
+                    "centipawn_loss": cpl,
+                    "best_move": best_move,
+                    "quality": quality,
+                }
+            )
 
         return moves_data
