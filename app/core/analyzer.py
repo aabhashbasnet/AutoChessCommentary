@@ -93,6 +93,7 @@ class ChessAnalyzer:
             move_data = {
                 "move_number": move_number,
                 "move": san_move,
+                "player": "White" if is_white_turn else "Black",
                 "fen_before": fen_before,
                 "fen_after": fen_after,
                 "eval_before": eval_before_white,
